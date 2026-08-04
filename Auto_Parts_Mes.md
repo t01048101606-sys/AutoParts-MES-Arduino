@@ -225,8 +225,6 @@ erDiagram
 
 ### (1) 로그인
 
-)
-
 - 역할(ADMIN/OPERATOR/INSPECTOR)에 따라 로그인 배너 색상과 접근 가능한 메뉴가 달라진다.
 
 ### (2) 품목 관리
