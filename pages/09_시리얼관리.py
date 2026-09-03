@@ -7,10 +7,9 @@ from src.services import assign_serials, set_serial_status
 from src.ui import metric_row, require_role, setup_page, show_dataframe
 
 
-setup_page("개별 시리얼 관리")
+setup_page("시리얼 관리")
 require_role("ADMIN", "OPERATOR", "INSPECTOR")
-st.title("개별 시리얼 관리")
-st.caption("LOT 하나를 골라 그 안의 개별 부품들에 시리얼번호를 일괄 부여하고, 상태를 관리합니다.")
+st.title("시리얼 관리")
 st.markdown("---")
 
 tab_assign, tab_lookup = st.tabs(["시리얼 부여", "시리얼 조회 / 상태 변경"])
