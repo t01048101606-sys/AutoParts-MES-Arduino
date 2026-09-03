@@ -16,7 +16,6 @@ from src.ui import require_role, setup_page, show_dataframe
 setup_page("라우팅 / BOM 관리")
 require_role("ADMIN", "OPERATOR")
 st.title("라우팅 / BOM 관리")
-st.caption("제품이 어떤 공정을 어떤 순서로 거치는지(라우팅), 각 공정마다 어떤 원자재/반제품이 얼마나 필요한지(BOM)를 등록합니다.")
 st.markdown("---")
 
 st.subheader("제품별 라우팅 등록 현황")
