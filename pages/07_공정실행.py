@@ -1,8 +1,10 @@
 from datetime import date
+import time
 
 import streamlit as st
 
 from src import queries
+from src.sensor import read_latest_count, reset_counter
 from src.services import OperationRegistration, register_operation
 from src.ui import require_role, setup_page, show_dataframe
 
@@ -56,8 +58,67 @@ for eq in equipment_candidates:
     equipment_options[f"{eq['equipment_code']} | {eq['equipment_name']}"] = eq["equipment_id"]
 
 operation_date = st.date_input("작업일자", value=date.today())
+
+st.markdown("##### 자동 생산 카운터 (리드 스위치)")
+st.caption("작업대의 리드 스위치가 자석 통과를 셀 때마다 값이 올라감. 새 단계를 시작하기 전엔 카운터를 리셋.")
+
+with st.expander("이 카운터는 왜 필요한가 (설계 배경 보기)", expanded=False):
+    st.markdown(
+        "리드 센서를 부품이 지나가는 자리에 두고, 부품(또는 부품을 담은 지그)에 자석을 붙여두면 "
+        "**부품이 하나 지나갈 때마다 자동으로 1씩 카운트**"
+    )
+
+    col_before, col_after = st.columns(2)
+    with col_before:
+        st.markdown("**기존**")
+        st.markdown(
+            "작업자가 완료된 개수를 직접 세어서 \u201c이번 단계 산출수량\u201d에 손으로 입력. "
+            "바쁘거나 개수가 많을수록 세는 도중 실수가 생기기 쉬움."
+        )
+    with col_after:
+        st.markdown("**확장**")
+        st.markdown(
+            "리드 센서가 실제로 지나간 개수를 실시간으로 집계 → 그 값이 산출수량 입력란에 "
+            "자동으로 채워짐. 사람은 확인만 하면 되고, 필요하면 직접 수정도 가능."
+        )
+
+    st.markdown(
+        "센서 하나가 \u201c사람이 세는 일\u201d을 대신해주는 가장 단순한 형태의 자동화이지만, "
+        "생산수량은 이후 BOM 소요량 계산과 재고 차감의 기준이 되기 때문에 "
+        "**입력 정확도가 시스템 전체 데이터 신뢰성에 직결**된다는 점에서 의미가 있음."
+    )
+
+counter_col1, counter_col2, counter_col3 = st.columns([1, 1, 2])
+with counter_col1:
+    if st.button("카운터 리셋"):
+        reset_counter()
+        st.session_state["reed_counter_value"] = 0
+        st.success("카운터를 0으로 초기화.")
+with counter_col2:
+    count_duration = st.number_input(
+        "카운트 시간(초)", min_value=5, max_value=300, value=30, step=5, key="count_duration"
+    )
+with counter_col3:
+    start_counting = st.button("카운트 시작", type="secondary")
+
+if start_counting:
+    progress = st.progress(0)
+    count_placeholder = st.empty()
+    last_count = st.session_state.get("reed_counter_value", 0)
+    for i in range(int(count_duration)):
+        c = read_latest_count()
+        if c is not None:
+            last_count = c
+        count_placeholder.metric("현재 카운트", last_count)
+        progress.progress((i + 1) / count_duration)
+        time.sleep(1)
+    st.session_state["reed_counter_value"] = last_count
+    st.success(f"카운트 종료: 총 {last_count}개 감지됨. 아래 산출수량에 자동 반영.")
+
+default_qty = float(st.session_state.get("reed_counter_value") or 0) or float(routing_row["planned_qty"])
 qty = st.number_input(
-    "이번 단계 산출수량", min_value=0.0, value=float(routing_row["planned_qty"]), step=10.0
+    "이번 단계 산출수량", min_value=0.0, value=default_qty, step=10.0,
+    help="자동 카운터로 값을 채웠어도 필요하면 직접 수정 가능.",
 )
 equipment_label = st.selectbox("사용 설비 (선택)", list(equipment_options.keys()))
 
@@ -78,7 +139,7 @@ else:
             f"— 필요수량 약 **{required_qty:,.1f} {bom_row['material_unit']}**"
         )
 
-        # 원자재는 RECEIPT LOT, 반제품은 WIP LOT에서 골라야 한다.
+        
         material_item = queries.item_by_id(material_item_id)
         lot_type = "RECEIPT" if material_item["item_type"] == "MATERIAL" else "WIP"
         available_lots = queries.lots_with_balance_for_item(material_item_id, lot_type)
@@ -141,6 +202,7 @@ if st.button("이 단계 완료 처리", type="primary"):
     try:
         result = register_operation(data)
         st.session_state["last_operation_result"] = result
+        st.session_state.pop("reed_counter_value", None)
         st.rerun()
     except ValueError as exc:
         st.error(str(exc))
