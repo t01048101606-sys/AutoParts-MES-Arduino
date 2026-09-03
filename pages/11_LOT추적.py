@@ -7,7 +7,6 @@ from src.ui import require_role, setup_page, show_dataframe
 setup_page("LOT 추적")
 require_role("ADMIN", "OPERATOR", "INSPECTOR")
 st.title("LOT 추적")
-st.caption("공정 여러 단계를 거치는 특성상, 원자재 → 반제품 → ... → 완제품 → 출하까지 다단계로 추적합니다.")
 st.markdown("---")
 
 tab_forward, tab_backward = st.tabs(["정방향 추적 (원자재 → 완제품)", "역방향 추적 (완제품 → 원자재)"])
