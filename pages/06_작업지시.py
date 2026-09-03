@@ -10,7 +10,6 @@ from src.ui import metric_row, require_role, setup_page, show_dataframe
 setup_page("작업지시")
 require_role("ADMIN", "OPERATOR")
 st.title("작업지시")
-st.caption("완제품을 얼마나 만들지 지시하는 단위입니다. 등록된 라우팅을 따라 공정을 진행합니다.")
 st.markdown("---")
 
 tab_register, tab_list = st.tabs(["작업지시 등록", "작업지시 조회 / 취소"])
