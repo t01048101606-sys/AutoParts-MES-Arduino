@@ -1171,3 +1171,69 @@ def recent_activity(limit: int = 8):
         """,
         (limit,),
     )
+
+
+# ---------------------------------------------------------
+# handling_event (현장 모니터링: 충격/초음파/온습도 센서)
+# ---------------------------------------------------------
+
+def monitorable_lots():
+    """모니터링 대상으로 고를 수 있는 LOT 목록 (WIP/FINISHED 전체, 최신순)."""
+    return fetch_all(
+        """
+        SELECT l.lot_id, l.lot_no, l.lot_type, i.item_name
+        FROM lot AS l
+        JOIN item AS i ON l.item_id = i.item_id
+        WHERE l.lot_type IN ('WIP', 'FINISHED')
+        ORDER BY l.lot_id DESC
+        LIMIT 100
+        """
+    )
+
+
+def handling_events_for_lot(lot_id: int, limit: int = 50):
+    return fetch_dataframe(
+        """
+        SELECT event_date, distance_cm, shock_detected, temperature, humidity, alert_triggered
+        FROM handling_event
+        WHERE lot_id = ?
+        ORDER BY handling_event_id DESC
+        LIMIT ?
+        """,
+        (lot_id, limit),
+    )
+
+
+def recent_handling_alerts(limit: int = 20):
+    """최근 경보(alert_triggered='Y') 이력, 어느 LOT인지와 함께."""
+    return fetch_dataframe(
+        """
+        SELECT
+            he.event_date, he.distance_cm, he.shock_detected,
+            he.temperature, he.humidity, l.lot_no, i.item_name
+        FROM handling_event AS he
+        LEFT JOIN lot AS l ON he.lot_id = l.lot_id
+        LEFT JOIN item AS i ON l.item_id = i.item_id
+        WHERE he.alert_triggered = 'Y'
+        ORDER BY he.handling_event_id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+
+
+def lot_has_shock_alert(lot_id: int) -> bool:
+    """이 LOT에 충격 감지 이력이 한 번이라도 있는지."""
+    row = fetch_one(
+        "SELECT handling_event_id FROM handling_event WHERE lot_id = ? AND shock_detected = 'Y' LIMIT 1",
+        (lot_id,),
+    )
+    return row is not None
+
+
+def shock_alert_lot_ids() -> set:
+    """충격 이력이 있는 LOT id 전체 (출하 페이지 배지 표시용)."""
+    rows = fetch_all(
+        "SELECT DISTINCT lot_id FROM handling_event WHERE shock_detected = 'Y' AND lot_id IS NOT NULL"
+    )
+    return {r["lot_id"] for r in rows}
