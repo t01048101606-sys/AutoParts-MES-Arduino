@@ -42,6 +42,7 @@ with tab_register:
         st.subheader("출하할 완제품 LOT 선택")
 
         lot_labels = {}
+        shock_lot_ids = queries.shock_alert_lot_ids()
         for lot in available_lots:
             if lot["inspection_result"] == "FAIL":
                 badge = " ❌ 불합격(출하불가)"
@@ -49,6 +50,8 @@ with tab_register:
                 badge = " ⚠️ 검사이력없음"
             else:
                 badge = f" ✅ {lot['inspection_result']}"
+            if lot["lot_id"] in shock_lot_ids:
+                badge += " 📦⚠ 충격이력있음"
             lot_labels[f"{lot['lot_no']} | {lot['item_name']} | 잔량 {lot['remaining_qty']:,.0f}{badge}"] = lot
 
         selected_labels = st.multiselect("LOT 선택", list(lot_labels.keys()))
@@ -59,6 +62,8 @@ with tab_register:
             if lot["inspection_result"] == "FAIL":
                 st.error(f"{lot['lot_no']}는 불합격 판정된 LOT라 출하할 수 없습니다. 선택에서 제외하세요.")
                 continue
+            if lot["lot_id"] in shock_lot_ids:
+                st.warning(f"{lot['lot_no']}는 충격 감지 이력이 있습니다. 출하 전 재검사를 권장합니다.")
             qty = st.number_input(
                 f"{lot['lot_no']} 출하수량",
                 min_value=0.0,
