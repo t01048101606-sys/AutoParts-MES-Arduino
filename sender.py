@@ -8,11 +8,11 @@ BAUDRATE = 9600
 
 try:
     ser = serial.Serial(PORT, BAUDRATE, timeout=1)
-    print(f"✅ 가상 아두이노(송신부) 연결 성공: {PORT}")
+    print(f" 가상 아두이노(송신부) 연결 성공: {PORT}")
     time.sleep(2)  
 except Exception as e:
-    print(f"❌ 포트 연결 실패: {e}")
-    print("💡 'socat -d -d pty,raw,echo=0 pty,raw,echo=0' 명령어가 실행 중인지 확인하세요.")
+    print(f" 포트 연결 실패: {e}")
+    print(" 'socat -d -d pty,raw,echo=0 pty,raw,echo=0' 명령어가 실행 중인지 확인하세요.")
     exit(1)
 
 reed_count = 100
