@@ -1,17 +1,17 @@
 import time
-
 import streamlit as st
+import pandas as pd
 
 from src import queries
 from src.sensor import read_latest_reading
 from src.services import log_handling_event
 from src.ui import alert_badge, kpi_row, require_role, setup_page, show_dataframe
-
+from src.db import get_connection
 
 setup_page("현장 모니터링")
 require_role("ADMIN", "OPERATOR", "INSPECTOR")
 st.title("현장 모니터링 (센서)")
-st.caption("아두이노(충격/초음파/온습도 센서)로 완제품 출하 대기 구역의 취급 품질을 실시간으로 감시.")
+st.caption("아두이노(충격/초음파/온습도 센서) 및 시뮬레이터로 완제품 출하 대기 구역의 취급 품질을 실시간으로 감시.")
 
 with st.expander("이 페이지는 왜 필요한가 (설계 배경 보기)", expanded=False):
     st.markdown("#### 센서별 의미")
@@ -27,9 +27,9 @@ with st.expander("이 페이지는 왜 필요한가 (설계 배경 보기)", exp
         }
     )
 
-    st.markdown("#### 가장 자연스러운 스토리 — \u201c출하 전 마지막 관문\u201d 자동화")
+    st.markdown("#### 가장 자연스러운 스토리 — “출하 전 마지막 관문” 자동화")
     st.markdown(
-        "지금 시스템에는 이미 **\u201cFAIL 판정 LOT는 출하 자동 차단\u201d** 기능이 있음. "
+        "지금 시스템에는 이미 **“FAIL 판정 LOT는 출하 자동 차단”** 기능이 있음. "
         "이 센서 조합은 그 개념을 한 단계 확장."
     )
 
@@ -41,12 +41,85 @@ with st.expander("이 페이지는 왜 필요한가 (설계 배경 보기)", exp
         st.markdown("**확장**")
         st.markdown(
             "출하 대기 구역에 이 장치를 놓고, 완제품 LOT가 거기 머무는 동안 충격이 감지되면 "
-            "자동으로 \u201c재검사 필요\u201d 플래그가 붙어서 사람이 놓치더라도 센서가 잡아냄."
+            "자동으로 “재검사 필요” 플래그가 붙어서 사람이 놓치더라도 센서가 잡아냄."
         )
 
 st.markdown("---")
 
-tab_monitor, tab_history, tab_alerts = st.tabs(["실시간 모니터링", "LOT별 이력", "최근 경보"])
+
+tab_dashboard, tab_monitor, tab_history, tab_alerts = st.tabs([
+    " 실시간 대시보드", " 구간 모니터링", " LOT별 이력", " 최근 경보"
+])
+
+with tab_dashboard:
+    col_dash1, col_dash2 = st.columns([3, 1])
+    with col_dash1:
+        st.subheader(" 수집 센서 데이터 실시간 대시보드")
+    with col_dash2:
+        auto_refresh = st.checkbox("자동 새로고침 (3초)", value=False)
+
+    def fetch_dashboard_events(limit=20):
+        """DB에서 최신 센서 수집 데이터를 가져옵니다 (created_at 제거)."""
+        conn = get_connection()
+        query = """
+            SELECT 
+                handling_event_id, lot_id, distance_cm, 
+                shock_detected, alert_triggered, temperature, 
+                humidity
+            FROM handling_event
+            ORDER BY handling_event_id DESC
+            LIMIT ?
+        """
+        df = pd.read_sql_query(query, conn, params=(limit,))
+        conn.close()
+        return df
+
+    df_dash = fetch_dashboard_events(limit=30)
+
+    if not df_dash.empty:
+        latest = df_dash.iloc[0]
+        recent_alerts = df_dash[df_dash['alert_triggered'] == 'Y'].shape[0]
+
+        
+        kpi_row([
+            ("최신 Event ID", f"#{int(latest['handling_event_id'])}", "kpi-blue"),
+            ("최근 LOT 번호", f"LOT #{int(latest['lot_id'])}" if pd.notnull(latest['lot_id']) else "N/A", "kpi-teal"),
+            ("현재 거리", f"{latest['distance_cm']:.1f} cm", "kpi-purple"),
+            ("온도 / 습도", f"{latest['temperature']:.1f} °C / {latest['humidity']:.0f} %", "kpi-teal"),
+        ])
+
+        if latest['alert_triggered'] == 'Y':
+            alert_badge(
+                f" 최근 이벤트 경보 발생! (충격: {'예' if latest['shock_detected'] == 'Y' or latest['shock_detected'] == 1 else '아니오'}, 거리: {latest['distance_cm']:.1f}cm)",
+                "danger"
+            )
+
+        
+        st.markdown("#### 최근 30건 실시간 데이터")
+        
+        def highlight_alerts(row):
+            if row.get('alert_triggered') == 'Y':
+                return ['background-color: #ffcccc; color: red; font-weight: bold;'] * len(row)
+            return [''] * len(row)
+
+        st.dataframe(
+            df_dash.style.apply(highlight_alerts, axis=1),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.markdown("#### 온/습도 변동 추이 (이벤트 ID 기준)")
+        
+        chart_data = df_dash[['handling_event_id', 'temperature', 'humidity']].set_index('handling_event_id').iloc[::-1]
+        st.line_chart(chart_data)
+
+    else:
+        st.info("수집된 센서 데이터가 없습니다. `sender.py`를 실행하거나 구간 모니터링을 진행해 주세요.")
+
+    if auto_refresh:
+        time.sleep(3)
+        st.rerun()
+
 
 with tab_monitor:
     lots = queries.monitorable_lots()
@@ -112,6 +185,7 @@ with tab_monitor:
     else:
         st.info("LOT을 선택하고 '모니터링 시작'을 누르면 지정한 시간 동안 센서값을 실시간으로 기록합니다.")
 
+
 with tab_history:
     lots = queries.monitorable_lots()
     if not lots:
@@ -125,6 +199,7 @@ with tab_history:
             alert_badge("이 LOT에는 충격 감지 이력이 있습니다. 재검사를 권장합니다.", "danger")
 
         show_dataframe(queries.handling_events_for_lot(hist_lot_id), "이 LOT에 대한 모니터링 기록이 없습니다.")
+
 
 with tab_alerts:
     alerts_df = queries.recent_handling_alerts(limit=30)
