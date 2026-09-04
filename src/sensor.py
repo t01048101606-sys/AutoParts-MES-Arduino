@@ -13,9 +13,9 @@ BAUDRATE = 9600
 
 try:
     ser = serial.Serial(PORT, BAUDRATE, timeout=1)
-    print(f"✅ MES 센서 수신부 연결 성공: {PORT}")
+    print(f" MES 센서 수신부 연결 성공: {PORT}")
 except Exception as e:
-    print(f"❌ 포트 열기 실패 ({PORT}): {e}")
+    print(f" 포트 열기 실패 ({PORT}): {e}")
     ser = None
 
 def read_latest_reading():
@@ -29,7 +29,7 @@ def read_latest_reading():
         if ser.in_waiting > 0:
             line = ser.readline().decode('utf-8').strip()
             if line:
-                print(f"📥 [MES 수신 <- {PORT}] {line}")
+                print(f" [MES 수신 <- {PORT}] {line}")
                 
                 
                 parsed_data = {}
@@ -73,7 +73,7 @@ def read_sensor_data(ser=None):
 
 @st.cache_resource
 def get_serial_connection(port: str = DEFAULT_PORT, baud: int = BAUD_RATE):
-    """시리얼 연결은 앱이 켜져있는 동안 한 번만 열어서 재사용한다."""
+    
     try:
         return serial.Serial(port, baud, timeout=1)
     except serial.SerialException as exc:
@@ -82,7 +82,7 @@ def get_serial_connection(port: str = DEFAULT_PORT, baud: int = BAUD_RATE):
 
 
 def parse_data_line(line: str) -> dict | None:
-    """"DATA,23,0,24.0,55.0" 형식의 문자열을 파싱한다. 형식이 안 맞으면 None."""
+    
     parts = line.strip().split(",")
     if len(parts) != 5 or parts[0] != "DATA":
         return None
@@ -120,7 +120,7 @@ COUNTER_PORT = DEFAULT_PORT
 
 
 def parse_count_line(line: str) -> int | None:
-    """"COUNT,3" 형식의 문자열을 파싱한다. 형식이 안 맞으면 None."""
+    
     parts = line.strip().split(",")
     if len(parts) != 2 or parts[0] != "COUNT":
         return None
@@ -131,7 +131,7 @@ def parse_count_line(line: str) -> int | None:
 
 
 def read_latest_count(port: str = COUNTER_PORT, baud: int = BAUD_RATE) -> int | None:
-    """버퍼에 쌓인 라인 중 가장 최근 COUNT 라인 1개를 파싱해서 반환한다."""
+    
     conn = get_serial_connection(port, baud)
     if conn is None:
         return None
@@ -149,7 +149,6 @@ def read_latest_count(port: str = COUNTER_PORT, baud: int = BAUD_RATE) -> int | 
 
 
 def reset_counter(port: str = COUNTER_PORT, baud: int = BAUD_RATE) -> None:
-    """아두이노에 RESET 명령을 보내 카운터를 0으로 초기화한다."""
     conn = get_serial_connection(port, baud)
     if conn is None:
         return
